@@ -6,6 +6,7 @@ import rv.trading.strategy.engine.persistence.entity.PositionEntity;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 public interface PositionRepository extends JpaRepository<PositionEntity, Long> {
 
@@ -13,6 +14,12 @@ public interface PositionRepository extends JpaRepository<PositionEntity, Long> 
 
     List<PositionEntity> findByBrokerClientIdInAndStatusOrderByOpenedAtDesc(
             Collection<Long> brokerClientIds,
+            PositionStatus status
+    );
+
+    Optional<PositionEntity> findFirstByBrokerClientIdAndInstrumentPairIdAndStatus(
+            Long brokerClientId,
+            Long instrumentPairId,
             PositionStatus status
     );
 }

@@ -7,6 +7,7 @@ import rv.trading.strategy.contracts.dto.internal.PageResponse;
 import rv.trading.strategy.contracts.dto.internal.PositionView;
 import rv.trading.strategy.contracts.dto.internal.SignalView;
 import rv.trading.strategy.contracts.enums.ExitMode;
+import rv.trading.strategy.contracts.enums.AlgotradingStatus;
 import rv.trading.strategy.contracts.enums.BotControlCommand;
 import rv.trading.strategy.contracts.enums.DirectionMode;
 import rv.trading.strategy.contracts.enums.IndicatorRole;
@@ -33,6 +34,12 @@ class SharedContractTypesTest {
 
     @Test
     void sharedEnumsExposeStableWireValues() {
+        assertThat(AlgotradingStatus.values()).containsExactly(
+                AlgotradingStatus.ACTIVE,
+                AlgotradingStatus.PAUSED,
+                AlgotradingStatus.STOPPED,
+                AlgotradingStatus.ERROR
+        );
         assertThat(DirectionMode.values()).containsExactly(
                 DirectionMode.LONG_ONLY, DirectionMode.SHORT_ONLY, DirectionMode.BOTH
         );

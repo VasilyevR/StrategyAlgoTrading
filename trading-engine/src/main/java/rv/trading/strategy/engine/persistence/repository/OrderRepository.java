@@ -4,10 +4,25 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import rv.trading.strategy.engine.persistence.entity.OrderEntity;
+import rv.trading.strategy.contracts.enums.OrderStatus;
+import rv.trading.strategy.contracts.enums.OrderType;
 
 import java.util.Collection;
+import java.util.Optional;
 
 public interface OrderRepository extends JpaRepository<OrderEntity, Long> {
 
     Page<OrderEntity> findByBrokerClientIdIn(Collection<Long> brokerClientIds, Pageable pageable);
+
+    boolean existsByBrokerClientIdAndInstrumentPairIdAndStatusIn(
+            Long brokerClientId,
+            Long instrumentPairId,
+            Collection<OrderStatus> statuses
+    );
+
+    Optional<OrderEntity> findFirstByPositionIdAndOrderTypeAndStatusIn(
+            Long positionId,
+            OrderType orderType,
+            Collection<OrderStatus> statuses
+    );
 }
