@@ -55,6 +55,12 @@
       <scope>runtime</scope>
     </dependency>
 
+    <!-- Kafka Consumers -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-kafka</artifactId>
+    </dependency>
+
     <!-- In-memory cache for instrument rules & trading sessions -->
     <dependency>
       <groupId>com.github.ben-manes.caffeine</groupId>
