@@ -15,12 +15,14 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import rv.trading.strategy.contracts.enums.OrderSide;
 import rv.trading.strategy.contracts.enums.OrderStatus;
 import rv.trading.strategy.contracts.enums.OrderType;
+import rv.trading.strategy.contracts.enums.IndicatorCode;
 import rv.trading.strategy.contracts.enums.PositionSide;
 import rv.trading.strategy.contracts.enums.PositionStatus;
 import rv.trading.strategy.contracts.enums.SignalStatus;
 import rv.trading.strategy.contracts.enums.SignalType;
 import rv.trading.strategy.contracts.enums.TimeInForce;
 import rv.trading.strategy.engine.TradeEngineApplication;
+import rv.trading.strategy.engine.core.indicator.IndicatorRegistry;
 import rv.trading.strategy.engine.persistence.entity.OrderEntity;
 import rv.trading.strategy.engine.persistence.entity.PositionEntity;
 import rv.trading.strategy.engine.persistence.entity.SignalEntity;
@@ -55,6 +57,9 @@ class TradingEnginePersistenceTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private IndicatorRegistry indicatorRegistry;
 
     @Autowired
     private OrderRepository orderRepository;
@@ -145,6 +150,36 @@ class TradingEnginePersistenceTest {
         assertThat(entityManager.getMetamodel().getEntities())
                 .extracting(entity -> entity.getJavaType().getSimpleName())
                 .contains("OrderEntity", "PositionEntity", "SignalEntity");
+    }
+
+    @Test
+    void v3RegistersEveryIndicatorAndAddsConditionGroups() {
+        List<String> indicatorCodes = jdbcTemplate.queryForList("SELECT code FROM indicator ORDER BY code", String.class);
+
+        assertThat(indicatorCodes).containsExactlyInAnyOrder(
+                java.util.Arrays.stream(IndicatorCode.values()).map(Enum::name).toArray(String[]::new));
+        for (IndicatorCode code : IndicatorCode.values()) {
+            assertThat(indicatorRegistry.getEvaluator(code.name()).code()).isEqualTo(code.name());
+        }
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT column_default FROM information_schema.columns " +
+                        "WHERE table_name = 'strategy_indicator' AND column_name = 'condition_group'", String.class))
+                .contains("1");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT is_nullable FROM information_schema.columns " +
+                        "WHERE table_name = 'strategy_indicator' AND column_name = 'condition_group'", String.class))
+                .isEqualTo("NO");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM pg_constraint WHERE conname = 'chk_strategy_indicator_condition_group'",
+                Integer.class)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM indicator_parameter p JOIN indicator i ON i.id = p.indicator_id " +
+                        "WHERE i.code = 'CMF' AND p.param_key IN ('period', 'buyThreshold', 'sellThreshold')",
+                Integer.class)).isEqualTo(3);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM indicator_parameter p JOIN indicator i ON i.id = p.indicator_id " +
+                        "WHERE i.code = 'AO' AND p.param_key IN ('fastPeriod', 'slowPeriod')",
+                Integer.class)).isEqualTo(2);
     }
 
     @Test

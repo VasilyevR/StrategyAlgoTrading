@@ -7,9 +7,20 @@ import org.springframework.web.method.annotation.HandlerMethodValidationExceptio
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import rv.trading.strategy.engine.service.exception.ResourceNotFoundException;
+import rv.trading.strategy.engine.core.indicator.exception.IndicatorConfigurationException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(IndicatorConfigurationException.class)
+    public ProblemDetail handleIndicatorConfiguration(IndicatorConfigurationException exception) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.getMessage());
+        problem.setTitle("Invalid indicator configuration");
+        if (exception.getIndicatorCode() != null) {
+            problem.setProperty("indicatorCode", exception.getIndicatorCode().name());
+        }
+        return problem;
+    }
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ProblemDetail handleResourceNotFound(ResourceNotFoundException exception) {

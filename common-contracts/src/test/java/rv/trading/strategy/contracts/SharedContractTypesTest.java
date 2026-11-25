@@ -8,6 +8,9 @@ import rv.trading.strategy.contracts.dto.internal.PositionView;
 import rv.trading.strategy.contracts.dto.internal.SignalView;
 import rv.trading.strategy.contracts.enums.ExitMode;
 import rv.trading.strategy.contracts.enums.IndicatorRole;
+import rv.trading.strategy.contracts.enums.IndicatorCode;
+import rv.trading.strategy.contracts.enums.IndicatorConditionType;
+import rv.trading.strategy.contracts.enums.MacdLine;
 import rv.trading.strategy.contracts.enums.OrderSide;
 import rv.trading.strategy.contracts.enums.OrderStatus;
 import rv.trading.strategy.contracts.enums.OrderType;
@@ -15,6 +18,7 @@ import rv.trading.strategy.contracts.enums.PositionSide;
 import rv.trading.strategy.contracts.enums.PositionStatus;
 import rv.trading.strategy.contracts.enums.SignalStatus;
 import rv.trading.strategy.contracts.enums.SignalType;
+import rv.trading.strategy.contracts.enums.SarMode;
 import rv.trading.strategy.contracts.enums.TimeInForce;
 
 import java.util.List;
@@ -49,6 +53,16 @@ class SharedContractTypesTest {
                 IndicatorRole.FILTER,
                 IndicatorRole.TRAILING_STOP
         );
+        assertThat(IndicatorCode.values()).containsExactly(
+                IndicatorCode.SMA_CROSS, IndicatorCode.MACD, IndicatorCode.CMF, IndicatorCode.SAR,
+                IndicatorCode.AO, IndicatorCode.ULTOSC, IndicatorCode.CCI, IndicatorCode.ROC,
+                IndicatorCode.KAMA, IndicatorCode.STOCH, IndicatorCode.STOCH_RVI
+        );
+        assertThat(IndicatorConditionType.values()).containsExactly(
+                IndicatorConditionType.CROSS, IndicatorConditionType.THRESHOLD, IndicatorConditionType.RANGE
+        );
+        assertThat(MacdLine.values()).containsExactly(MacdLine.SIGNAL, MacdLine.MACD, MacdLine.HISTOGRAM);
+        assertThat(SarMode.values()).containsExactly(SarMode.TREND, SarMode.CONTRARIAN_EXTREME);
         assertThat(SignalType.values()).containsExactly(
                 SignalType.BUY_OPEN,
                 SignalType.BUY_CLOSE,
