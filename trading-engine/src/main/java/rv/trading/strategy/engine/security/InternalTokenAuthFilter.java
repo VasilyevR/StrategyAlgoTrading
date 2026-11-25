@@ -30,7 +30,11 @@ public class InternalTokenAuthFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path = request.getServletPath();
+        String path = request.getRequestURI();
+        String contextPath = request.getContextPath();
+        if (contextPath != null && !contextPath.isEmpty() && path.startsWith(contextPath)) {
+            path = path.substring(contextPath.length());
+        }
         return !path.equals(INTERNAL_PATH) && !path.startsWith(INTERNAL_PATH_PREFIX);
     }
 
