@@ -15,7 +15,6 @@ import rv.trading.strategy.engine.persistence.repository.OrderRepository;
 import rv.trading.strategy.engine.persistence.repository.PositionRepository;
 import rv.trading.strategy.engine.persistence.repository.SignalRepository;
 
-import java.time.Instant;
 import java.util.Collection;
 import java.util.Optional;
 
@@ -93,10 +92,10 @@ public class WorkerPersistenceService {
     }
 
     public static Optional<OrderSide> directionFor(SignalType signalType) {
-        if (signalType == SignalType.BUY_OPEN || signalType == SignalType.BUY_CLOSE) {
+        if (signalType == SignalType.BUY_OPEN || signalType == SignalType.SELL_CLOSE) {
             return Optional.of(OrderSide.BUY);
         }
-        if (signalType == SignalType.SELL_OPEN || signalType == SignalType.SELL_CLOSE) {
+        if (signalType == SignalType.SELL_OPEN || signalType == SignalType.BUY_CLOSE) {
             return Optional.of(OrderSide.SELL);
         }
         return Optional.empty();
