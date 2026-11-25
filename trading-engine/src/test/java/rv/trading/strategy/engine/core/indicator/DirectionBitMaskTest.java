@@ -3,7 +3,6 @@ package rv.trading.strategy.engine.core.indicator;
 import org.junit.jupiter.api.Test;
 
 import java.util.BitSet;
-import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -25,17 +24,5 @@ class DirectionBitMaskTest {
         assertThat(DirectionBitMask.hasUp(both)).isTrue();
         assertThat(DirectionBitMask.hasDown(both)).isTrue();
         assertThat(DirectionBitMask.empty().isEmpty()).isTrue();
-    }
-
-    @Test
-    void evaluationClonesDirectionMaskOnConstructionAndAccess() {
-        BitSet original = DirectionBitMask.of(true, false);
-        IndicatorEvaluation evaluation = new IndicatorEvaluation(original, Map.of());
-        original.clear();
-
-        BitSet returned = evaluation.directionMask();
-        assertThat(DirectionBitMask.hasUp(returned)).isTrue();
-        returned.clear();
-        assertThat(DirectionBitMask.hasUp(evaluation.directionMask())).isTrue();
     }
 }

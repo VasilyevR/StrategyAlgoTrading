@@ -17,7 +17,6 @@ public interface IndicatorEvaluator {
     IndicatorEvaluation evaluateIndicator(BarSeries series, IndicatorRole role, Map<String, Object> params);
 
     default IndicatorEvaluation evaluate(BarSeries series, IndicatorRole role, Map<String, Object> params) {
-        validateParams(params);
         try {
             return evaluateIndicator(series, role, params);
         } catch (IndicatorConfigurationException | IndicatorEvaluationException exception) {

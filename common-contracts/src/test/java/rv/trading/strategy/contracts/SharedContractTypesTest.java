@@ -7,6 +7,8 @@ import rv.trading.strategy.contracts.dto.internal.PageResponse;
 import rv.trading.strategy.contracts.dto.internal.PositionView;
 import rv.trading.strategy.contracts.dto.internal.SignalView;
 import rv.trading.strategy.contracts.enums.ExitMode;
+import rv.trading.strategy.contracts.enums.BotControlCommand;
+import rv.trading.strategy.contracts.enums.DirectionMode;
 import rv.trading.strategy.contracts.enums.IndicatorRole;
 import rv.trading.strategy.contracts.enums.IndicatorCode;
 import rv.trading.strategy.contracts.enums.IndicatorConditionType;
@@ -18,8 +20,10 @@ import rv.trading.strategy.contracts.enums.PositionSide;
 import rv.trading.strategy.contracts.enums.PositionStatus;
 import rv.trading.strategy.contracts.enums.SignalStatus;
 import rv.trading.strategy.contracts.enums.SignalType;
+import rv.trading.strategy.contracts.enums.SizingMode;
 import rv.trading.strategy.contracts.enums.SarMode;
 import rv.trading.strategy.contracts.enums.TimeInForce;
+import rv.trading.strategy.contracts.enums.TimeframeCode;
 
 import java.util.List;
 
@@ -29,6 +33,13 @@ class SharedContractTypesTest {
 
     @Test
     void sharedEnumsExposeStableWireValues() {
+        assertThat(DirectionMode.values()).containsExactly(
+                DirectionMode.LONG_ONLY, DirectionMode.SHORT_ONLY, DirectionMode.BOTH
+        );
+        assertThat(SizingMode.values()).containsExactly(SizingMode.FIXED_VOLUME, SizingMode.RISK_PERCENT);
+        assertThat(BotControlCommand.values()).containsExactly(
+                BotControlCommand.START, BotControlCommand.STOP, BotControlCommand.RELOAD_PARAMS
+        );
         assertThat(OrderSide.values()).containsExactly(OrderSide.BUY, OrderSide.SELL);
         assertThat(OrderType.values()).containsExactly(OrderType.MARKET, OrderType.LIMIT, OrderType.STOP, OrderType.STOP_LIMIT);
         assertThat(OrderStatus.values()).containsExactly(
@@ -41,6 +52,10 @@ class SharedContractTypesTest {
                 OrderStatus.REJECTED
         );
         assertThat(TimeInForce.values()).containsExactly(TimeInForce.GTC, TimeInForce.IOC, TimeInForce.FOK, TimeInForce.DAY);
+        assertThat(TimeframeCode.values()).containsExactly(
+                TimeframeCode.M1, TimeframeCode.M5, TimeframeCode.M15, TimeframeCode.H1,
+                TimeframeCode.H4, TimeframeCode.D1, TimeframeCode.W1
+        );
         assertThat(PositionSide.values()).containsExactly(PositionSide.LONG, PositionSide.SHORT);
         assertThat(PositionStatus.values()).containsExactly(PositionStatus.OPEN, PositionStatus.CLOSED);
         assertThat(ExitMode.values()).containsExactly(

@@ -52,7 +52,7 @@ class IndicatorRegistryTest {
         IndicatorEvaluator duplicate = evaluatorWithCode(IndicatorCode.SMA_CROSS.name());
 
         assertThatThrownBy(() -> new IndicatorRegistry(List.of(first, duplicate)))
-                .isInstanceOf(IndicatorConfigurationException.class)
+                .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining(IndicatorCode.SMA_CROSS.name());
     }
 

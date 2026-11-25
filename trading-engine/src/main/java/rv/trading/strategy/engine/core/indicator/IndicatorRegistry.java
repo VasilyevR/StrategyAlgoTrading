@@ -4,7 +4,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -18,11 +17,7 @@ public final class IndicatorRegistry {
 
     public IndicatorRegistry(List<IndicatorEvaluator> evaluators) {
         this.evaluators = evaluators.stream().collect(Collectors.toUnmodifiableMap(
-                evaluator -> Objects.requireNonNull(evaluator.code(), "indicator code"), Function.identity(),
-                (first, duplicate) -> {
-                    throw new IndicatorConfigurationException(indicatorCode(first.code()),
-                            "Duplicate indicator code: " + first.code());
-                }));
+                IndicatorEvaluator::code, Function.identity()));
     }
 
     public IndicatorEvaluator getEvaluator(String code) {
