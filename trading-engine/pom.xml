@@ -8,9 +8,9 @@
     <version>0.0.1-SNAPSHOT</version>
   </parent>
 
-  <artifactId>trade-engine</artifactId>
+  <artifactId>trading-engine</artifactId>
   <packaging>jar</packaging>
-  <name>Trade Engine Service</name>
+  <name>Trading Engine Service</name>
   <description>Core strategy execution engine with Virtual Threads, BitSet signal masks, and broker adapters</description>
 
   <dependencies>
@@ -19,6 +19,11 @@
       <groupId>rv.trading.strategy</groupId>
       <artifactId>common-contracts</artifactId>
       <version>${project.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.mapstruct</groupId>
+      <artifactId>mapstruct</artifactId>
     </dependency>
 
     <!-- Spring Boot Core & Actuator Probes (no UI controllers) -->
