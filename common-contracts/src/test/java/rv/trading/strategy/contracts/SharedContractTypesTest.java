@@ -6,6 +6,8 @@ import rv.trading.strategy.contracts.dto.internal.OrderView;
 import rv.trading.strategy.contracts.dto.internal.PageResponse;
 import rv.trading.strategy.contracts.dto.internal.PositionView;
 import rv.trading.strategy.contracts.dto.internal.SignalView;
+import rv.trading.strategy.contracts.enums.ExitMode;
+import rv.trading.strategy.contracts.enums.IndicatorRole;
 import rv.trading.strategy.contracts.enums.OrderSide;
 import rv.trading.strategy.contracts.enums.OrderStatus;
 import rv.trading.strategy.contracts.enums.OrderType;
@@ -37,6 +39,16 @@ class SharedContractTypesTest {
         assertThat(TimeInForce.values()).containsExactly(TimeInForce.GTC, TimeInForce.IOC, TimeInForce.FOK, TimeInForce.DAY);
         assertThat(PositionSide.values()).containsExactly(PositionSide.LONG, PositionSide.SHORT);
         assertThat(PositionStatus.values()).containsExactly(PositionStatus.OPEN, PositionStatus.CLOSED);
+        assertThat(ExitMode.values()).containsExactly(
+                ExitMode.SIGNAL_MARKET,
+                ExitMode.TRAILING_STOP,
+                ExitMode.HYBRID
+        );
+        assertThat(IndicatorRole.values()).containsExactly(
+                IndicatorRole.TRIGGER,
+                IndicatorRole.FILTER,
+                IndicatorRole.TRAILING_STOP
+        );
         assertThat(SignalType.values()).containsExactly(
                 SignalType.BUY_OPEN,
                 SignalType.BUY_CLOSE,
