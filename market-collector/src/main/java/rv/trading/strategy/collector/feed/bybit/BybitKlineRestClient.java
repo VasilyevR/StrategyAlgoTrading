@@ -1,9 +1,9 @@
 package rv.trading.strategy.collector.feed.bybit;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import tools.jackson.databind.JsonNode;
 import rv.trading.strategy.collector.config.MarketCollectorProperties;
 import rv.trading.strategy.contracts.enums.TimeframeCode;
 import rv.trading.strategy.contracts.enums.TimeframeDurations;

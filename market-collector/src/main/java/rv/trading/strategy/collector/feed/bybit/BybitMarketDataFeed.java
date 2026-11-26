@@ -1,14 +1,13 @@
 package rv.trading.strategy.collector.feed.bybit;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 import rv.trading.strategy.collector.config.MarketCollectorProperties;
 import rv.trading.strategy.collector.feed.ExchangeMarketDataFeed;
 import rv.trading.strategy.collector.publisher.MarketEventPublisher;
@@ -276,7 +275,7 @@ public class BybitMarketDataFeed implements ExchangeMarketDataFeed {
                 } else if (topic.startsWith(BybitConstants.KLINE_TOPIC_PREFIX)) {
                     processKline(topic, message.path(BybitConstants.DATA_KEY));
                 }
-            } catch (JsonProcessingException | RuntimeException exception) {
+            } catch (RuntimeException exception) {
                 LOGGER.debug("Ignoring malformed Bybit WebSocket message", exception);
             }
         }
