@@ -4,6 +4,8 @@ import com.github.tomakehurst.wiremock.WireMockServer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
 import rv.trading.strategy.contracts.enums.TimeframeCode;
 import rv.trading.strategy.contracts.event.CandleEvent;
@@ -24,7 +26,6 @@ class BybitKlineRestClientTest {
     private static final String SYMBOL = "BTCUSDT";
     private static final int LIMIT = 2;
     private static final long INSTRUMENT_PAIR_ID = 101L;
-    private static final String RESPONSE_CONTENT_TYPE = "application/json";
 
     private static final WireMockServer WIRE_MOCK = new WireMockServer(
             com.github.tomakehurst.wiremock.core.WireMockConfiguration.options().dynamicPort());
@@ -53,7 +54,7 @@ class BybitKlineRestClientTest {
                 .withQueryParam(BybitConstants.LIMIT_KEY, equalTo(Integer.toString(LIMIT)))
                 .withQueryParam(BybitConstants.CATEGORY_KEY, equalTo(BybitConstants.SPOT_CATEGORY))
                 .willReturn(com.github.tomakehurst.wiremock.client.WireMock.aResponse()
-                        .withHeader("Content-Type", RESPONSE_CONTENT_TYPE)
+                        .withHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                         .withBody(klineResponse(futureOpenTime, pastOpenTime))));
 
         List<CandleEvent> candles = createClient().fetchHistoricalKlines(
@@ -88,7 +89,7 @@ class BybitKlineRestClientTest {
         WIRE_MOCK.stubFor(get(urlPathEqualTo(BybitConstants.REST_KLINE_PATH))
                 .withQueryParam(BybitConstants.CATEGORY_KEY, equalTo(BybitConstants.LINEAR_CATEGORY))
                 .willReturn(com.github.tomakehurst.wiremock.client.WireMock.aResponse()
-                        .withHeader("Content-Type", RESPONSE_CONTENT_TYPE)
+                        .withHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                         .withBody(klineResponse(pastOpenTime, pastOpenTime))));
 
         List<CandleEvent> candles = createClient().fetchHistoricalKlines(
@@ -103,7 +104,7 @@ class BybitKlineRestClientTest {
     void returnsEmptyWhenBybitReportsAnErrorOrNoRows() {
         WIRE_MOCK.stubFor(get(urlPathEqualTo(BybitConstants.REST_KLINE_PATH))
                 .willReturn(com.github.tomakehurst.wiremock.client.WireMock.aResponse()
-                        .withHeader("Content-Type", RESPONSE_CONTENT_TYPE)
+                        .withHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                         .withBody("{\"retCode\":10001,\"result\":{\"list\":[]}}")));
         assertThat(createClient().fetchHistoricalKlines(
                 INSTRUMENT_PAIR_ID, SYMBOL, BybitConstants.LINEAR_CATEGORY, TimeframeCode.M1, LIMIT)).isEmpty();
@@ -111,7 +112,7 @@ class BybitKlineRestClientTest {
         WIRE_MOCK.resetAll();
         WIRE_MOCK.stubFor(get(urlPathEqualTo(BybitConstants.REST_KLINE_PATH))
                 .willReturn(com.github.tomakehurst.wiremock.client.WireMock.aResponse()
-                        .withHeader("Content-Type", RESPONSE_CONTENT_TYPE)
+                        .withHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                         .withBody("{\"retCode\":0,\"result\":{\"list\":[]}}")));
         assertThat(createClient().fetchHistoricalKlines(
                 INSTRUMENT_PAIR_ID, SYMBOL, BybitConstants.LINEAR_CATEGORY, TimeframeCode.M1, LIMIT)).isEmpty();
