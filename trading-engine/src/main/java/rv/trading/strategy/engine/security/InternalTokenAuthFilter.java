@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import rv.trading.strategy.contracts.InternalApiHeaders;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -17,7 +18,6 @@ public class InternalTokenAuthFilter extends OncePerRequestFilter {
 
     private static final String INTERNAL_PATH_PREFIX = "/internal/";
     private static final String INTERNAL_PATH = "/internal";
-    private static final String TOKEN_HEADER = "X-Internal-Token";
 
     private final byte[] expectedTokenBytes;
 
@@ -44,7 +44,7 @@ public class InternalTokenAuthFilter extends OncePerRequestFilter {
             HttpServletResponse response,
             FilterChain filterChain
     ) throws ServletException, IOException {
-        String suppliedToken = request.getHeader(TOKEN_HEADER);
+        String suppliedToken = request.getHeader(InternalApiHeaders.INTERNAL_TOKEN);
         if (suppliedToken == null || !MessageDigest.isEqual(
                 expectedTokenBytes,
                 suppliedToken.getBytes(StandardCharsets.UTF_8)

@@ -7,6 +7,7 @@ import org.ta4j.core.BaseBarSeriesBuilder;
 import rv.trading.strategy.contracts.event.CandleEvent;
 import rv.trading.strategy.contracts.event.TickEvent;
 import rv.trading.strategy.contracts.enums.TimeframeCode;
+import rv.trading.strategy.contracts.enums.TimeframeDurations;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -41,7 +42,7 @@ public class BarSeriesBuffer {
         if (tick == null || timeframeCode == null || tick.lastPrice() == null) {
             return;
         }
-        Duration period = durationFor(timeframeCode);
+        Duration period = TimeframeDurations.duration(timeframeCode);
         Instant begin = align(tick.timestamp(), period);
         Instant end = begin.plus(period);
         double price = tick.lastPrice().doubleValue();
@@ -84,7 +85,7 @@ public class BarSeriesBuffer {
                 || candle.low() == null || candle.close() == null) {
             return;
         }
-        Duration period = durationFor(candle.timeframeCode());
+        Duration period = TimeframeDurations.duration(candle.timeframeCode());
         Instant begin = candle.openTime() != null ? candle.openTime() : candle.closeTime();
         if (begin == null) {
             return;
@@ -112,21 +113,6 @@ public class BarSeriesBuffer {
 
     public BarSeries series() {
         return series;
-    }
-
-    private static Duration durationFor(TimeframeCode timeframeCode) {
-        if (timeframeCode == null) {
-            return Duration.ofMinutes(1);
-        }
-        return switch (timeframeCode) {
-            case M1 -> Duration.ofMinutes(1);
-            case M5 -> Duration.ofMinutes(5);
-            case M15 -> Duration.ofMinutes(15);
-            case H1 -> Duration.ofHours(1);
-            case H4 -> Duration.ofHours(4);
-            case D1 -> Duration.ofDays(1);
-            case W1 -> Duration.ofDays(7);
-        };
     }
 
     private static Instant align(Instant timestamp, Duration period) {

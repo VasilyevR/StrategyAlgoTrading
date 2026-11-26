@@ -8,6 +8,7 @@ import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.support.RestClientAdapter;
 import org.springframework.web.service.invoker.HttpServiceProxyFactory;
+import rv.trading.strategy.contracts.InternalApiHeaders;
 
 import java.net.http.HttpClient;
 import java.time.Duration;
@@ -35,7 +36,7 @@ public class InternalHttpClientsConfig {
         return RestClient.builder()
                 .baseUrl(baseUrl)
                 .requestFactory(requestFactory)
-                .defaultHeader("X-Internal-Token", internalToken)
+                .defaultHeader(InternalApiHeaders.INTERNAL_TOKEN, internalToken)
                 .build();
     }
 
@@ -49,7 +50,7 @@ public class InternalHttpClientsConfig {
         return RestClient.builder()
                 .baseUrl(baseUrl)
                 .requestFactory(requestFactory)
-                .defaultHeader("X-Internal-Token", internalToken)
+                .defaultHeader(InternalApiHeaders.INTERNAL_TOKEN, internalToken)
                 .build();
     }
 
