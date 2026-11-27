@@ -354,7 +354,7 @@ public class AlgotradingWorker {
                 TimeInForce.GTC, position.getQuantity(), null, null, true);
         OrderExecutionReceipt receipt = brokerExecutionPort.placeOrder(command);
 
-        LOGGER.debug("Broker order result: algotradingId={}, side={}, type={}, qty={}, status={}, orderId={}, avgPrice={}, rejectReason={}",
+        LOGGER.info("Broker order result: algotradingId={}, side={}, type={}, qty={}, status={}, orderId={}, avgPrice={}, rejectReason={}",
                 config.algotradingId(), command.side(), command.orderType(), command.quantity(),
                 receipt.status(), receipt.exchangeOrderId(), receipt.avgFillPrice(), receipt.rejectReason());
 
@@ -411,7 +411,7 @@ public class AlgotradingWorker {
                 TimeInForce.GTC, quantity, null, null, false);
         OrderExecutionReceipt receipt = brokerExecutionPort.placeOrder(command);
 
-        LOGGER.debug("Broker order result: algotradingId={}, side={}, type={}, qty={}, status={}, orderId={}, avgPrice={}, rejectReason={}",
+        LOGGER.info("Broker order result: algotradingId={}, side={}, type={}, qty={}, status={}, orderId={}, avgPrice={}, rejectReason={}",
                 config.algotradingId(), command.side(), command.orderType(), command.quantity(),
                 receipt.status(), receipt.exchangeOrderId(), receipt.avgFillPrice(), receipt.rejectReason());
 
