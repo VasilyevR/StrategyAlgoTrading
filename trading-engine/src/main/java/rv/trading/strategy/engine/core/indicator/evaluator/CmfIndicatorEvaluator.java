@@ -51,9 +51,16 @@ public final class CmfIndicatorEvaluator implements IndicatorEvaluator {
         }
         ChaikinMoneyFlowIndicator cmf = new ChaikinMoneyFlowIndicator(series, period);
         int index = series.getEndIndex();
-        double current = IndicatorSupport.value(cmf.getValue(index));
+        var lastBar = series.getBar(index);
+        int evalIndex = (index > 0
+                && lastBar.getVolume().isZero()
+                && lastBar.getHighPrice().equals(lastBar.getLowPrice()))
+                ? index - 1
+                : index;
+        double current = IndicatorSupport.value(cmf.getValue(evalIndex));
         double previous = role == IndicatorRole.TRIGGER
-                ? IndicatorSupport.value(cmf.getValue(index - 1)) : current;
+                ? IndicatorSupport.value(cmf.getValue(Math.max(0, evalIndex - 1)))
+                : current;
         if (!IndicatorSupport.finite(current, previous)) {
             return IndicatorSupport.empty(Map.of());
         }
