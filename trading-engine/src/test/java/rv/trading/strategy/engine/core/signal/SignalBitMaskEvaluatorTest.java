@@ -121,6 +121,21 @@ class SignalBitMaskEvaluatorTest {
         assertThat(result.actions()).isEmpty();
     }
 
+    @Test
+    void trailingStopAndHybridAllowReentryInSameDirectionWhenFlat() {
+        SignalEvaluationContext sameDirectionFlat =
+                new SignalEvaluationContext(Optional.empty(), Optional.of(OrderSide.BUY));
+
+        for (ExitMode exitMode : List.of(ExitMode.TRAILING_STOP, ExitMode.HYBRID)) {
+            AlgotradingRuntimeConfig config = config(List.of(
+                    indicator(IndicatorCode.SMA_CROSS, ALIAS_TREND, IndicatorRole.TRIGGER, 1)
+            ), exitMode);
+
+            SignalEvaluationResult result = evaluator.evaluate(series, config, sameDirectionFlat);
+            assertThat(result.actions()).containsExactly(SignalType.BUY_OPEN);
+        }
+    }
+
     private static SignalEvaluationContext flatContext() {
         return new SignalEvaluationContext(Optional.empty(), Optional.empty());
     }

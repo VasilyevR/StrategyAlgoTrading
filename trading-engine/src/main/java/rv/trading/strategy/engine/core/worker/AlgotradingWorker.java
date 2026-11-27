@@ -50,6 +50,7 @@ public class AlgotradingWorker {
     private static final int CLIENT_ORDER_SUFFIX_LENGTH = 24;
 
     private final ReentrantLock lock = new ReentrantLock();
+    private Instant lastEntryBarBeginTime;
 
     @Getter
     private AlgotradingRuntimeConfig config;
@@ -150,6 +151,13 @@ public class AlgotradingWorker {
                 return;
             }
 
+            Instant currentBarBegin = barSeriesBuffer.series().isEmpty()
+                    ? null
+                    : barSeriesBuffer.series().getLastBar().getBeginTime();
+            if (openPosition.isEmpty() && currentBarBegin != null && currentBarBegin.equals(lastEntryBarBeginTime)) {
+                return;
+            }
+
             SignalEntity signal = new SignalEntity();
             signal.setAlgotradingId(config.algotradingId());
             signal.setCandleOpenTime(tick.timestamp());
@@ -170,6 +178,9 @@ public class AlgotradingWorker {
                     case BUY_OPEN, SELL_CLOSE -> Optional.of(OrderSide.BUY);
                     case SELL_OPEN, BUY_CLOSE -> Optional.of(OrderSide.SELL);
                 };
+                if (executedAction == SignalType.BUY_OPEN || executedAction == SignalType.SELL_OPEN) {
+                    lastEntryBarBeginTime = currentBarBegin;
+                }
                 persistenceService.updateSignalStatus(signal, SignalStatus.EXECUTED, null);
             } catch (RuntimeException exception) {
                 persistenceService.updateSignalStatus(signal, SignalStatus.FAILED, exception.getMessage());

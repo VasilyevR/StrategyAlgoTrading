@@ -69,14 +69,17 @@ public final class SignalBitMaskEvaluator {
         List<SignalType> actions = new ArrayList<>(2);
         boolean up = DirectionBitMask.hasUp(mask);
         boolean down = DirectionBitMask.hasDown(mask);
+        boolean enforceDirectionMemory = exitMode == ExitMode.SIGNAL_MARKET;
 
         if (context.openPositionSide().isEmpty()) {
             if (up && directionMode != DirectionMode.SHORT_ONLY
-                    && context.lastSignalDirection().filter(OrderSide.BUY::equals).isEmpty()) {
+                    && (!enforceDirectionMemory
+                    || context.lastSignalDirection().filter(OrderSide.BUY::equals).isEmpty())) {
                 actions.add(SignalType.BUY_OPEN);
             }
             if (down && directionMode != DirectionMode.LONG_ONLY
-                    && context.lastSignalDirection().filter(OrderSide.SELL::equals).isEmpty()) {
+                    && (!enforceDirectionMemory
+                    || context.lastSignalDirection().filter(OrderSide.SELL::equals).isEmpty())) {
                 actions.add(SignalType.SELL_OPEN);
             }
             return actions;
