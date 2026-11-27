@@ -270,10 +270,70 @@ public class AlgotradingWorker {
 
         Optional<OrderEntity> stopOrder = persistenceService.loadStopOrder(position.getId());
         if (stopOrder.isPresent() && stopOrder.get().getExternalOrderId() != null) {
-            brokerExecutionPort.cancelOrder(config.brokerClientId(), config.instrumentPairId(),
-                    stopOrder.get().getExternalOrderId());
-            stopOrder.get().setStatus(OrderStatus.CANCELED);
-            persistenceService.saveOrder(stopOrder.get());
+            OrderEntity activeStop = stopOrder.get();
+            Optional<OrderExecutionReceipt> existStopOrder = brokerExecutionPort.fetchOrderReceipt(
+                    config.brokerClientId(), config.instrumentPairId(), config.symbol(),
+                    activeStop.getExternalOrderId());
+
+            if (existStopOrder.isPresent()) {
+                OrderExecutionReceipt stopReceipt = existStopOrder.get();
+                if (stopReceipt.status() == OrderStatus.FILLED) {
+                    activeStop.setStatus(OrderStatus.FILLED);
+                    if (stopReceipt.filledQuantity() != null && stopReceipt.filledQuantity().signum() > 0) {
+                        activeStop.setFilledQuantity(stopReceipt.filledQuantity());
+                    }
+                    if (stopReceipt.avgFillPrice() != null && stopReceipt.avgFillPrice().signum() > 0) {
+                        activeStop.setAvgFillPrice(stopReceipt.avgFillPrice());
+                    }
+                    if (stopReceipt.commission() != null) {
+                        activeStop.setCommission(stopReceipt.commission());
+                    }
+                    if (stopReceipt.commissionAsset() != null) {
+                        activeStop.setCommissionCurrency(stopReceipt.commissionAsset());
+                    }
+                    persistenceService.saveOrder(activeStop);
+
+                    PositionEntity freshPosition = persistenceService.loadPositionById(position.getId())
+                            .orElse(position);
+                    if (freshPosition.getStatus() == PositionStatus.CLOSED) {
+                        return;
+                    }
+
+                    BigDecimal closePrice = (stopReceipt.avgFillPrice() != null && stopReceipt.avgFillPrice().signum() > 0)
+                            ? stopReceipt.avgFillPrice()
+                            : (activeStop.getStopPrice() != null ? activeStop.getStopPrice() : triggerPrice);
+
+                    BigDecimal entry = freshPosition.getAvgEntryPrice();
+                    BigDecimal realizedPnl = freshPosition.getSide() == PositionSide.LONG
+                            ? closePrice.subtract(entry).multiply(freshPosition.getQuantity())
+                            : entry.subtract(closePrice).multiply(freshPosition.getQuantity());
+                    BigDecimal exitFee = stopReceipt.commission() == null ? BigDecimal.ZERO : stopReceipt.commission();
+                    BigDecimal prevCommission = freshPosition.getTotalCommission() == null
+                            ? BigDecimal.ZERO
+                            : freshPosition.getTotalCommission();
+
+                    freshPosition.setStatus(PositionStatus.CLOSED);
+                    freshPosition.setClosedAt(Instant.now());
+                    freshPosition.setRealizedPnl(realizedPnl);
+                    freshPosition.setTotalCommission(prevCommission.add(exitFee));
+                    persistenceService.savePosition(freshPosition);
+                    return;
+                }
+                if (stopReceipt.status() == OrderStatus.CANCELED|| stopReceipt.status() == OrderStatus.REJECTED) {
+                    activeStop.setStatus(OrderStatus.CANCELED);
+                    persistenceService.saveOrder(activeStop);
+                } else {
+                    brokerExecutionPort.cancelOrder(config.brokerClientId(), config.instrumentPairId(),
+                            activeStop.getExternalOrderId());
+                    activeStop.setStatus(OrderStatus.CANCELED);
+                    persistenceService.saveOrder(activeStop);
+                }
+            } else {
+                brokerExecutionPort.cancelOrder(config.brokerClientId(), config.instrumentPairId(),
+                        activeStop.getExternalOrderId());
+                activeStop.setStatus(OrderStatus.CANCELED);
+                persistenceService.saveOrder(activeStop);
+            }
         }
 
         OrderSide orderSide = action == SignalType.BUY_CLOSE ? OrderSide.SELL : OrderSide.BUY;
@@ -286,10 +346,6 @@ public class AlgotradingWorker {
         LOGGER.debug("Broker order result: algotradingId={}, side={}, type={}, qty={}, status={}, orderId={}, avgPrice={}, rejectReason={}",
                 config.algotradingId(), command.side(), command.orderType(), command.quantity(),
                 receipt.status(), receipt.exchangeOrderId(), receipt.avgFillPrice(), receipt.rejectReason());
-
-        if (receipt.status() == OrderStatus.REJECTED) {
-            throw new IllegalStateException("Order rejected by broker: " + receipt.rejectReason());
-        }
 
         OrderEntity order = new OrderEntity();
         order.setBrokerClientId(config.brokerClientId());
@@ -311,6 +367,10 @@ public class AlgotradingWorker {
         order.setStatus(receipt.status());
         order.setRejectReason(receipt.rejectReason());
         order = persistenceService.saveOrder(order);
+
+        if (receipt.status() == OrderStatus.REJECTED) {
+            throw new IllegalStateException("Order rejected by broker: " + receipt.rejectReason());
+        }
 
         BigDecimal closePrice = receipt.avgFillPrice() == null ? triggerPrice : receipt.avgFillPrice();
         BigDecimal entry = position.getAvgEntryPrice();

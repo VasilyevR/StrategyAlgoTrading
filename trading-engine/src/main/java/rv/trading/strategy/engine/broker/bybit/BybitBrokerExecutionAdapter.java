@@ -219,6 +219,42 @@ public class BybitBrokerExecutionAdapter implements BrokerTradingAdapter {
                 BybitV5Endpoint.CANCEL_ORDER);
     }
 
+    @Override
+    public java.util.Optional<OrderExecutionReceipt> fetchOrderReceipt(
+            DecryptedBrokerCredentials credentials, String symbol, String exchangeOrderId) {
+        if (exchangeOrderId == null || exchangeOrderId.isBlank()) {
+            return java.util.Optional.empty();
+        }
+        JsonNode row = queryExecutedOrder(credentials, category(credentials), symbol, exchangeOrderId);
+        if (row == null) {
+            return java.util.Optional.empty();
+        }
+        String rawStatus = row.path(ORDER_STATUS_KEY).asString();
+        OrderStatus mappedStatus = mapBybitOrderStatus(rawStatus);
+        return java.util.Optional.of(new OrderExecutionReceipt(
+                exchangeOrderId,
+                mappedStatus,
+                decimal(row.path(CUM_EXEC_QTY_KEY)),
+                decimal(row.path(AVG_PRICE_KEY)),
+                decimal(row.path(CUM_EXEC_FEE_KEY)),
+                USDT,
+                mappedStatus == OrderStatus.REJECTED ? row.path("rejectReason").asString() : null
+        ));
+    }
+
+    private static OrderStatus mapBybitOrderStatus(String rawStatus) {
+        if (rawStatus == null) {
+            return OrderStatus.OPEN;
+        }
+        return switch (rawStatus) {
+            case "Filled" -> OrderStatus.FILLED;
+            case "Cancelled", "Deactivated" -> OrderStatus.CANCELED;
+            case "Rejected" -> OrderStatus.REJECTED;
+            case "PartiallyFilled" -> OrderStatus.PARTIALLY_FILLED;
+            default -> OrderStatus.OPEN;
+        };
+    }
+
     private JsonNode signedGet(DecryptedBrokerCredentials credentials,
                                BybitV5Endpoint endpoint,
                                String queryString) {

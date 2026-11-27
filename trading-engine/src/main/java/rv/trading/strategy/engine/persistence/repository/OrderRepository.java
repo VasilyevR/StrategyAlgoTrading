@@ -8,11 +8,14 @@ import rv.trading.strategy.contracts.enums.OrderStatus;
 import rv.trading.strategy.contracts.enums.OrderType;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 public interface OrderRepository extends JpaRepository<OrderEntity, Long> {
 
     Page<OrderEntity> findByBrokerClientIdIn(Collection<Long> brokerClientIds, Pageable pageable);
+
+    List<OrderEntity> findByStatusIn(Collection<OrderStatus> statuses);
 
     boolean existsByBrokerClientIdAndInstrumentPairIdAndStatusIn(
             Long brokerClientId,

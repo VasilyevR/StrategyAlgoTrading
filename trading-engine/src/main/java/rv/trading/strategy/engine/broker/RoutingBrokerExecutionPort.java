@@ -23,6 +23,13 @@ public class RoutingBrokerExecutionPort implements BrokerExecutionPort {
     }
 
     @Override
+    public java.util.Optional<OrderExecutionReceipt> fetchOrderReceipt(
+            long brokerClientId, long instrumentPairId, String symbol, String exchangeOrderId) {
+        DecryptedBrokerCredentials credentials = loadCredentials(brokerClientId);
+        return adapterFor(credentials).fetchOrderReceipt(credentials, symbol, exchangeOrderId);
+    }
+
+    @Override
     public BigDecimal getAvailableBalance(long brokerClientId, long instrumentPairId) {
         DecryptedBrokerCredentials credentials = loadCredentials(brokerClientId);
         return adapterFor(credentials).getAvailableBalance(credentials, instrumentPairId);

@@ -10,6 +10,11 @@ import java.math.BigDecimal;
 public interface BrokerTradingAdapter {
     BrokerCode brokerCode();
 
+    default java.util.Optional<OrderExecutionReceipt> fetchOrderReceipt(
+            DecryptedBrokerCredentials credentials, String symbol, String exchangeOrderId) {
+        return java.util.Optional.empty();
+    }
+
     BigDecimal getAvailableBalance(DecryptedBrokerCredentials credentials,
                                    long instrumentPairId);
 

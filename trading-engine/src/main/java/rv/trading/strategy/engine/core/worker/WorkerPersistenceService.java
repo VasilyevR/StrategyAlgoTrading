@@ -100,4 +100,14 @@ public class WorkerPersistenceService {
         }
         return Optional.empty();
     }
+
+    @Transactional(readOnly = true)
+    public java.util.List<OrderEntity> loadActiveOrders() {
+        return orderRepository.findByStatusIn(ACTIVE_ORDER_STATUSES);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<PositionEntity> loadPositionById(Long positionId) {
+        return positionId == null ? Optional.empty() : positionRepository.findById(positionId);
+    }
 }
