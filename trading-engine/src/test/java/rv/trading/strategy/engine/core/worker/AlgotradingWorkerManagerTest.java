@@ -161,7 +161,10 @@ class AlgotradingWorkerManagerTest {
 
         clearInvocations(persistence);
         manager.dispatchCandle(candle(21L, TimeframeCode.M1, true));
-        verify(persistence, never()).loadOpenPosition(anyLong(), anyLong());
+        Awaitility.await().atMost(Duration.ofSeconds(2)).untilAsserted(() ->
+                verify(persistence).loadOpenPosition(12L, 19L));
+        verify(persistence, never()).loadOpenPosition(11L, 19L);
+        verify(persistence, never()).loadOpenPosition(13L, 20L);
 
         clearInvocations(persistence);
         manager.dispatchCandle(candle(19L, TimeframeCode.M1, false));

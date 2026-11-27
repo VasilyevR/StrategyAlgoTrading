@@ -19,6 +19,7 @@ import rv.trading.strategy.contracts.enums.TimeframeDurations;
 import rv.trading.strategy.contracts.event.CandleEvent;
 import rv.trading.strategy.contracts.event.TickEvent;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -38,6 +39,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class BybitMarketDataFeed implements ExchangeMarketDataFeed {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(BybitMarketDataFeed.class);
+    private static final int RECONNECT_BACKFILL_LIMIT = 5;
 
     private final BybitKlineRestClient klineRestClient;
     private final CandleStorageService candleStorageService;
@@ -127,16 +129,49 @@ public class BybitMarketDataFeed implements ExchangeMarketDataFeed {
         }
     }
 
+    private void backfillCategoryOnReconnect(String category) {
+        List<MarketSubscription> currentSubscriptions = subscriptions;
+        if (currentSubscriptions == null) {
+            return;
+        }
+        for (MarketSubscription subscription : currentSubscriptions) {
+            if (!category.equals(categoryOrDefault(subscription.marketCategory()))
+                    || subscription.timeframes() == null) {
+                continue;
+            }
+            for (TimeframeCode timeframeCode : subscription.timeframes()) {
+                try {
+                    for (CandleEvent candle : klineRestClient.fetchHistoricalKlines(
+                            subscription.instrumentPairId(),
+                            subscription.symbol(),
+                            subscription.marketCategory(),
+                            timeframeCode,
+                            RECONNECT_BACKFILL_LIMIT)) {
+                        candleStorageService.upsertCandle(candle);
+                        if (candle.closed()) {
+                            marketEventPublisher.publish(candle);
+                        }
+                    }
+                } catch (RuntimeException exception) {
+                    LOGGER.warn("Bybit reconnect backfill failed for {} {} {}: {}",
+                            subscription.symbol(), subscription.marketCategory(), timeframeCode,
+                            exception.getMessage());
+                }
+            }
+        }
+    }
+
     private void connectWithReconnect(String category) {
         long initialDelayMillis = properties.getReconnectInitialDelayMillis();
         AtomicLong backoffMillis = new AtomicLong(initialDelayMillis);
+        AtomicBoolean initialConnect = new AtomicBoolean(true);
         long maxBackoffMillis = properties.getReconnectMaxDelayMillis();
 
         while (running) {
             CountDownLatch disconnected = new CountDownLatch(1);
             AtomicBoolean connected = new AtomicBoolean(false);
             BybitWebSocketListener listener = new BybitWebSocketListener(
-                    category, disconnected, connected, backoffMillis);
+                    category, disconnected, connected, backoffMillis, initialConnect);
             String baseUrl = properties.getBybitWebSocketBaseUrl();
             String separator = baseUrl.endsWith("/") ? "" : "/";
             URI uri = URI.create(baseUrl + separator + category);
@@ -158,7 +193,8 @@ public class BybitMarketDataFeed implements ExchangeMarketDataFeed {
                 Thread.currentThread().interrupt();
                 return;
             } catch (RuntimeException exception) {
-                LOGGER.warn("Bybit public WebSocket connection failed for {}", category, exception);
+                LOGGER.warn("Bybit public WebSocket connection failed for {}: {}",
+                        category, exception.getMessage());
                 if (!running) {
                     return;
                 }
@@ -199,16 +235,19 @@ public class BybitMarketDataFeed implements ExchangeMarketDataFeed {
         private final CountDownLatch disconnected;
         private final AtomicBoolean connected;
         private final AtomicLong backoffMillis;
+        private final AtomicBoolean initialConnect;
         private final StringBuilder frameBuffer = new StringBuilder();
 
         private BybitWebSocketListener(String category,
                                        CountDownLatch disconnected,
                                        AtomicBoolean connected,
-                                       AtomicLong backoffMillis) {
+                                       AtomicLong backoffMillis,
+                                       AtomicBoolean initialConnect) {
             this.category = category;
             this.disconnected = disconnected;
             this.connected = connected;
             this.backoffMillis = backoffMillis;
+            this.initialConnect = initialConnect;
         }
 
         @Override
@@ -217,6 +256,10 @@ public class BybitMarketDataFeed implements ExchangeMarketDataFeed {
             backoffMillis.set(properties.getReconnectInitialDelayMillis());
             webSocket.request(Long.MAX_VALUE);
             subscribe(webSocket);
+            if (!initialConnect.getAndSet(false)) {
+                LOGGER.info("Bybit public WebSocket reconnected for {}, running gap recovery", category);
+                executor.execute(() -> backfillCategoryOnReconnect(category));
+            }
         }
 
         @Override
@@ -234,7 +277,15 @@ public class BybitMarketDataFeed implements ExchangeMarketDataFeed {
         public void onError(WebSocket webSocket, Throwable error) {
             connected.set(false);
             disconnected.countDown();
-            LOGGER.warn("Bybit public WebSocket error for {}", category, error);
+            if (!running) {
+                return;
+            }
+            if (error instanceof IOException) {
+                LOGGER.warn("Bybit public WebSocket disconnected for {} ({}), reconnecting...",
+                        category, error.getMessage());
+            } else {
+                LOGGER.warn("Bybit public WebSocket error for {}", category, error);
+            }
         }
 
         @Override
@@ -350,10 +401,7 @@ public class BybitMarketDataFeed implements ExchangeMarketDataFeed {
             if (openTime == null) {
                 return;
             }
-            Instant closeTime = epochFromMillis(data.path(BybitConstants.END_KEY).asText());
-            if (closeTime == null) {
-                closeTime = openTime.plus(TimeframeDurations.duration(timeframeCode));
-            }
+            Instant closeTime = openTime.plus(TimeframeDurations.duration(timeframeCode));
             BigDecimal open = decimal(data, BybitConstants.OPEN_KEY);
             BigDecimal high = decimal(data, BybitConstants.HIGH_KEY);
             BigDecimal low = decimal(data, BybitConstants.LOW_KEY);

@@ -49,6 +49,9 @@ public class BarSeriesBuffer {
 
         if (!series.isEmpty()) {
             Bar last = series.getLastBar();
+            if (begin.isBefore(last.getBeginTime())) {
+                return;
+            }
             if (last.getBeginTime().equals(begin)) {
                 double open = last.getOpenPrice().doubleValue();
                 double high = Math.max(last.getHighPrice().doubleValue(), price);
@@ -90,7 +93,7 @@ public class BarSeriesBuffer {
         if (begin == null) {
             return;
         }
-        Instant end = candle.closeTime() != null ? candle.closeTime() : begin.plus(period);
+        Instant end = begin.plus(period);
         Bar bar = series.barBuilder()
                 .timePeriod(period)
                 .beginTime(begin)
@@ -102,9 +105,17 @@ public class BarSeriesBuffer {
                 .volume(candle.volume() == null ? 0 : candle.volume().doubleValue())
                 .build();
         if (!series.isEmpty()) {
-            Bar last = series.getLastBar();
-            if (last.getBeginTime().equals(begin)) {
-                series.replaceBar(series.getEndIndex(), bar);
+            for (int index = series.getEndIndex(); index >= series.getBeginIndex(); index--) {
+                Instant existingBegin = series.getBar(index).getBeginTime();
+                if (existingBegin.equals(begin)) {
+                    series.replaceBar(index, bar);
+                    return;
+                }
+                if (existingBegin.isBefore(begin)) {
+                    break;
+                }
+            }
+            if (!begin.isAfter(series.getLastBar().getBeginTime())) {
                 return;
             }
         }

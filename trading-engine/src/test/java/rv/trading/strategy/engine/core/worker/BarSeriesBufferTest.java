@@ -9,6 +9,7 @@ import org.instancio.Instancio;
 import org.instancio.Select;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -94,17 +95,20 @@ class BarSeriesBufferTest {
     void applyCandleReplacesAnExistingBarAndAppendsNextBar() {
         BarSeriesBuffer buffer = new BarSeriesBuffer();
         Instant openTime = Instant.parse("2025-01-01T10:00:00Z");
-        buffer.applyCandle(candle(openTime, openTime.plusSeconds(60),
+        buffer.applyCandle(candle(openTime, openTime.plusMillis(59_999),
                 BigDecimal.valueOf(10), BigDecimal.valueOf(12), BigDecimal.valueOf(9),
                 BigDecimal.valueOf(11), BigDecimal.ONE, false));
 
-        buffer.applyCandle(candle(openTime, openTime.plusSeconds(60),
+        buffer.applyCandle(candle(openTime, openTime.plusMillis(59_999),
                 BigDecimal.valueOf(10), BigDecimal.valueOf(15), BigDecimal.valueOf(8),
                 BigDecimal.valueOf(14), BigDecimal.TEN, true));
 
         assertThat(buffer.series().getBarCount()).isEqualTo(1);
         assertThat(buffer.series().getLastBar().getHighPrice().doubleValue()).isEqualTo(15.0);
         assertThat(buffer.series().getLastBar().getClosePrice().doubleValue()).isEqualTo(14.0);
+        assertThat(buffer.series().getLastBar().getEndTime()).isEqualTo(openTime.plusSeconds(60));
+        assertThat(Duration.between(buffer.series().getLastBar().getBeginTime(),
+                buffer.series().getLastBar().getEndTime())).isEqualTo(Duration.ofMinutes(1));
 
         Instant nextOpenTime = openTime.plusSeconds(60);
         buffer.applyCandle(candle(nextOpenTime, nextOpenTime.plusSeconds(60),

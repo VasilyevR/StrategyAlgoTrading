@@ -1,5 +1,6 @@
 package rv.trading.strategy.engine.core.worker;
 
+import lombok.Getter;
 import rv.trading.strategy.contracts.dto.internal.AlgotradingRuntimeConfig;
 import rv.trading.strategy.contracts.dto.internal.StrategyIndicatorConfig;
 import rv.trading.strategy.contracts.enums.ExitMode;
@@ -46,9 +47,11 @@ import java.util.concurrent.locks.ReentrantLock;
 public class AlgotradingWorker {
     public static final String MARKET_CLIENT_ORDER_PREFIX = "AT-MARKET-";
     public static final String STOP_CLIENT_ORDER_PREFIX = "AT-STOP-";
+    private static final int CLIENT_ORDER_SUFFIX_LENGTH = 24;
 
     private final ReentrantLock lock = new ReentrantLock();
 
+    @Getter
     private AlgotradingRuntimeConfig config;
     private BarSeriesBuffer barSeriesBuffer;
     private StrategyConfigValidator configValidator;
@@ -60,7 +63,11 @@ public class AlgotradingWorker {
     private SignalBitMaskEvaluator signalEvaluator;
     private IndicatorRegistry indicatorRegistry;
     private Optional<OrderSide> lastSignalDirection = Optional.empty();
+    @Getter
     private boolean stopped;
+    private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger(AlgotradingWorker.class);
+    private static final long TICK_LOG_INTERVAL_SECONDS = 15L;
+    private Instant lastTickLogAt = Instant.EPOCH;
 
     public AlgotradingWorker() {
     }
@@ -95,11 +102,16 @@ public class AlgotradingWorker {
             List<CandleEvent> candles = marketHistoryPort.loadRecentCandles(
                     config.instrumentPairId(), config.timeframeCode(), BarSeriesBuffer.DEFAULT_MAXIMUM_BAR_COUNT);
             barSeriesBuffer.initialize(candles);
+
+            LOGGER.debug("Worker warmed up: algotradingId={}, symbol={}, tf={}, loadedCandles={}, barsInSeries={}, lastDirection={}",
+                    config.algotradingId(), config.symbol(), config.timeframeCode(),
+                    candles.size(), barSeriesBuffer.series().getBarCount(), lastSignalDirection.orElse(null));
+
             lastSignalDirection = persistenceService.loadLatestExecutedSignalDirection(config.algotradingId());
             stopped = false;
             runtimeConfigPort.reportWorkerStatus(config.algotradingId(), AlgotradingStatus.ACTIVE, null);
         } catch (RuntimeException exception) {
-            stopWithError(exception.getMessage());
+            stopWithError(errorMessageOf(exception));
         } finally {
             lock.unlock();
         }
@@ -120,6 +132,15 @@ public class AlgotradingWorker {
                     config,
                     new SignalEvaluationContext(openPositionSide, lastSignalDirection)
             );
+
+            Instant now = Instant.now();
+            if (now.isAfter(lastTickLogAt.plusSeconds(TICK_LOG_INTERVAL_SECONDS))) {
+                lastTickLogAt = now;
+                LOGGER.debug("Tick heartbeat: algotradingId={}, price={}, bars={}, snapshot={}, actions={}",
+                        config.algotradingId(), tick.lastPrice(), barSeriesBuffer.series().getBarCount(),
+                        evaluation.indicatorSnapshot(), evaluation.actions());
+            }
+
             if (evaluation.actions().isEmpty()) {
                 if (openPosition.isEmpty() && DirectionBitMask.hasUp(evaluation.resolvedDirectionMask())) {
                     lastSignalDirection = Optional.of(OrderSide.BUY);
@@ -152,10 +173,10 @@ public class AlgotradingWorker {
                 persistenceService.updateSignalStatus(signal, SignalStatus.EXECUTED, null);
             } catch (RuntimeException exception) {
                 persistenceService.updateSignalStatus(signal, SignalStatus.FAILED, exception.getMessage());
-                stopWithError(exception.getMessage());
+                stopWithError(errorMessageOf(exception));
             }
         } catch (RuntimeException exception) {
-            stopWithError(exception.getMessage());
+            stopWithError(errorMessageOf(exception));
         } finally {
             lock.unlock();
         }
@@ -168,6 +189,12 @@ public class AlgotradingWorker {
                 return;
             }
             barSeriesBuffer.applyCandle(candle);
+
+            LOGGER.debug("Candle closed: algotradingId={}, openTime={}, close={}, bars={}, lastDirection={}",
+                    config.algotradingId(), candle.openTime(), candle.close(),
+                    barSeriesBuffer.series().getBarCount(),
+                    lastSignalDirection.orElse(null));
+
             if (config.exitMode() != ExitMode.TRAILING_STOP && config.exitMode() != ExitMode.HYBRID) {
                 return;
             }
@@ -220,14 +247,6 @@ public class AlgotradingWorker {
         }
     }
 
-    public boolean isStopped() {
-        return stopped;
-    }
-
-    public AlgotradingRuntimeConfig getConfig() {
-        return config;
-    }
-
     private void executeAction(SignalType action, BigDecimal triggerPrice, SignalEntity signal) {
         if (action == SignalType.BUY_CLOSE || action == SignalType.SELL_CLOSE) {
             executeClose(action, triggerPrice, signal);
@@ -263,6 +282,14 @@ public class AlgotradingWorker {
                 uniqueClientOrderId(MARKET_CLIENT_ORDER_PREFIX), orderSide, OrderType.MARKET,
                 TimeInForce.GTC, position.getQuantity(), null, null, true);
         OrderExecutionReceipt receipt = brokerExecutionPort.placeOrder(command);
+
+        LOGGER.debug("Broker order result: algotradingId={}, side={}, type={}, qty={}, status={}, orderId={}, avgPrice={}, rejectReason={}",
+                config.algotradingId(), command.side(), command.orderType(), command.quantity(),
+                receipt.status(), receipt.exchangeOrderId(), receipt.avgFillPrice(), receipt.rejectReason());
+
+        if (receipt.status() == OrderStatus.REJECTED) {
+            throw new IllegalStateException("Order rejected by broker: " + receipt.rejectReason());
+        }
 
         OrderEntity order = new OrderEntity();
         order.setBrokerClientId(config.brokerClientId());
@@ -312,6 +339,31 @@ public class AlgotradingWorker {
                 uniqueClientOrderId(MARKET_CLIENT_ORDER_PREFIX), orderSide, OrderType.MARKET,
                 TimeInForce.GTC, quantity, null, null, false);
         OrderExecutionReceipt receipt = brokerExecutionPort.placeOrder(command);
+
+        LOGGER.debug("Broker order result: algotradingId={}, side={}, type={}, qty={}, status={}, orderId={}, avgPrice={}, rejectReason={}",
+                config.algotradingId(), command.side(), command.orderType(), command.quantity(),
+                receipt.status(), receipt.exchangeOrderId(), receipt.avgFillPrice(), receipt.rejectReason());
+
+        if (receipt.status() == OrderStatus.REJECTED) {
+            OrderEntity rejectedOrder = new OrderEntity();
+            rejectedOrder.setBrokerClientId(config.brokerClientId());
+            rejectedOrder.setInstrumentPairId(config.instrumentPairId());
+            rejectedOrder.setAlgotradingId(config.algotradingId());
+            rejectedOrder.setSignalId(signal.getId());
+            rejectedOrder.setExternalOrderId(receipt.exchangeOrderId());
+            rejectedOrder.setClientOrderId(command.clientOrderId());
+            rejectedOrder.setSide(orderSide);
+            rejectedOrder.setOrderType(OrderType.MARKET);
+            rejectedOrder.setTimeInForce(TimeInForce.GTC);
+            rejectedOrder.setOutsideRth(false);
+            rejectedOrder.setQuantity(quantity);
+            rejectedOrder.setFilledQuantity(BigDecimal.ZERO);
+            rejectedOrder.setCommission(BigDecimal.ZERO);
+            rejectedOrder.setStatus(OrderStatus.REJECTED);
+            rejectedOrder.setRejectReason(receipt.rejectReason());
+            persistenceService.saveOrder(rejectedOrder);
+            throw new IllegalStateException("Order rejected by broker: " + receipt.rejectReason());
+        }
 
         PositionEntity position = new PositionEntity();
         position.setBrokerClientId(config.brokerClientId());
@@ -414,6 +466,15 @@ public class AlgotradingWorker {
     }
 
     private static String uniqueClientOrderId(String prefix) {
-        return prefix + UUID.randomUUID();
+        String compactUuid = UUID.randomUUID().toString().replace("-", "")
+                .substring(0, CLIENT_ORDER_SUFFIX_LENGTH);
+        return prefix + compactUuid;
+    }
+
+    private static String errorMessageOf(RuntimeException exception) {
+        String message = exception.getMessage();
+        return (message == null || message.isBlank())
+                ? exception.getClass().getSimpleName()
+                : message;
     }
 }

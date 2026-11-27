@@ -129,6 +129,8 @@ class BybitMarketDataFeedTest {
         assertThat(publishedCandle.low()).isEqualTo(new BigDecimal("9.5"));
         assertThat(publishedCandle.close()).isEqualTo(new BigDecimal("11.5"));
         assertThat(publishedCandle.volume()).isEqualTo(new BigDecimal("20.5"));
+        assertThat(publishedCandle.closeTime())
+                .isEqualTo(Instant.ofEpochMilli(MESSAGE_TIMESTAMP_MILLIS).plusSeconds(60));
         assertThat(publishedCandle.closed()).isTrue();
         verify(candleStorageService, times(2)).upsertCandle(any(CandleEvent.class));
     }
