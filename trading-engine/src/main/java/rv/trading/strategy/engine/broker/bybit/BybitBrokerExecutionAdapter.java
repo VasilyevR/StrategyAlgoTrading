@@ -29,6 +29,7 @@ import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Set;
 import java.util.function.Supplier;
 
 @Component
@@ -85,6 +86,14 @@ public class BybitBrokerExecutionAdapter implements BrokerTradingAdapter {
     private static final long RETRY_BASE_DELAY_MILLIS = 300L;
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
     private static final Duration READ_TIMEOUT = Duration.ofSeconds(10);
+
+    private static final Set<Integer> INSUFFICIENT_FUNDS_RET_CODES = Set.of(
+            110004, // Wallet balance is insufficient
+            110007, // Available balance not enough for new order
+            110012, // Insufficient available balance
+            110045, // Insufficient wallet balance
+            170131  // Insufficient balance (Spot)
+    );
 
     private final TradingEngineProperties properties;
     private final JsonMapper jsonMapper;
@@ -185,10 +194,11 @@ public class BybitBrokerExecutionAdapter implements BrokerTradingAdapter {
 
         JsonNode response = signedPost(credentials, BybitV5Endpoint.CREATE_ORDER, serialize(body));
         if (response == null) {
-            return rejected(EMPTY_BYBIT_RESPONSE);
+            return rejected(EMPTY_BYBIT_RESPONSE, false);
         }
-        if (response.path(RET_CODE_KEY).asInt(-1) != 0) {
-            return rejected(response.path(RET_MSG_KEY).asString());
+        int retCode = response.path(RET_CODE_KEY).asInt(-1);
+        if (retCode != 0) {
+            return rejected(response.path(RET_MSG_KEY).asString(), INSUFFICIENT_FUNDS_RET_CODES.contains(retCode));
         }
         String orderId = response.path(RESULT_KEY).path(ORDER_ID_KEY).asString();
         if (command.orderType() == OrderType.STOP) {
@@ -420,8 +430,8 @@ public class BybitBrokerExecutionAdapter implements BrokerTradingAdapter {
         }
     }
 
-    private static OrderExecutionReceipt rejected(String reason) {
+    private static OrderExecutionReceipt rejected(String reason, boolean insufficientFunds) {
         return new OrderExecutionReceipt(null, OrderStatus.REJECTED, BigDecimal.ZERO,
-                null, BigDecimal.ZERO, null, reason);
+                null, BigDecimal.ZERO, null, reason, insufficientFunds);
     }
 }

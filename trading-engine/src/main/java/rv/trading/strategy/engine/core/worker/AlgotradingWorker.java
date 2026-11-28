@@ -188,6 +188,20 @@ public class AlgotradingWorker {
                 persistenceService.updateSignalStatus(signal, SignalStatus.FAILED, exception.getMessage());
                 LOGGER.warn("Transient broker I/O error during signal execution, keeping worker ACTIVE: algotradingId={}, signalId={}, error={}",
                         config.algotradingId(), signal.getId(), exception.getMessage());
+            } catch (OrderSizingException exception) {
+                if (exception.isInsufficientFunds()) {
+                    lastEntryBarBeginTime = currentBarBegin;
+                    boolean isPureEntry = evaluation.actions().size() == 1
+                            && (evaluation.actions().get(0) == SignalType.BUY_OPEN
+                            || evaluation.actions().get(0) == SignalType.SELL_OPEN);
+                    SignalStatus nextStatus = isPureEntry ? SignalStatus.IGNORED : SignalStatus.EXECUTED;
+                    persistenceService.updateSignalStatus(signal, nextStatus, exception.getMessage());
+                    LOGGER.warn("Entry skipped due to insufficient funds, keeping worker ACTIVE: algotradingId={}, signalId={}, reason={}",
+                            config.algotradingId(), signal.getId(), exception.getMessage());
+                } else {
+                    persistenceService.updateSignalStatus(signal, SignalStatus.FAILED, exception.getMessage());
+                    stopWithError(exception.getMessage());
+                }
             } catch (RuntimeException exception) {
                 persistenceService.updateSignalStatus(signal, SignalStatus.FAILED, exception.getMessage());
                 stopWithError(errorMessageOf(exception));
@@ -442,6 +456,9 @@ public class AlgotradingWorker {
             rejectedOrder.setStatus(OrderStatus.REJECTED);
             rejectedOrder.setRejectReason(receipt.rejectReason());
             persistenceService.saveOrder(rejectedOrder);
+            if (receipt.insufficientFunds()) {
+                throw new OrderSizingException("Insufficient funds: " + receipt.rejectReason(), true);
+            }
             throw new IllegalStateException("Order rejected by broker: " + receipt.rejectReason());
         }
 

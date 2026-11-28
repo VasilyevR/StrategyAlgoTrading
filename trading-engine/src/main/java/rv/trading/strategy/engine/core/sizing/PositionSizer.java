@@ -55,7 +55,7 @@ public class PositionSizer {
             BigDecimal balance = brokerExecutionPort.getAvailableBalance(
                     config.brokerClientId(), config.instrumentPairId());
             if (balance == null || balance.signum() <= 0) {
-                throw new OrderSizingException(ZERO_QUANTITY_MESSAGE);
+                throw new OrderSizingException(ZERO_QUANTITY_MESSAGE, true);
             }
             BigDecimal riskAmount = balance.multiply(config.orderVolume()).divide(
                     BigDecimal.valueOf(100), 12, RoundingMode.HALF_UP);

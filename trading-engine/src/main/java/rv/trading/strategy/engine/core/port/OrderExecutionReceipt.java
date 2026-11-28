@@ -11,6 +11,18 @@ public record OrderExecutionReceipt(
         BigDecimal avgFillPrice,
         BigDecimal commission,
         String commissionAsset,
-        String rejectReason
+        String rejectReason,
+        boolean insufficientFunds
 ) {
+    public OrderExecutionReceipt(
+            String exchangeOrderId,
+            OrderStatus status,
+            BigDecimal filledQuantity,
+            BigDecimal avgFillPrice,
+            BigDecimal commission,
+            String commissionAsset,
+            String rejectReason) {
+        this(exchangeOrderId, status, filledQuantity, avgFillPrice, commission,
+                commissionAsset, rejectReason, false);
+    }
 }
