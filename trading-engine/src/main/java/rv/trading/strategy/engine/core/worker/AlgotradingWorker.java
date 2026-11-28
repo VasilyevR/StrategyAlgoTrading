@@ -1,6 +1,8 @@
 package rv.trading.strategy.engine.core.worker;
 
 import lombok.Getter;
+import org.springframework.web.client.HttpServerErrorException;
+import org.springframework.web.client.ResourceAccessException;
 import rv.trading.strategy.contracts.dto.internal.AlgotradingRuntimeConfig;
 import rv.trading.strategy.contracts.dto.internal.StrategyIndicatorConfig;
 import rv.trading.strategy.contracts.enums.ExitMode;
@@ -182,6 +184,10 @@ public class AlgotradingWorker {
                     lastEntryBarBeginTime = currentBarBegin;
                 }
                 persistenceService.updateSignalStatus(signal, SignalStatus.EXECUTED, null);
+            } catch (ResourceAccessException | HttpServerErrorException exception) {
+                persistenceService.updateSignalStatus(signal, SignalStatus.FAILED, exception.getMessage());
+                LOGGER.warn("Transient broker I/O error during signal execution, keeping worker ACTIVE: algotradingId={}, signalId={}, error={}",
+                        config.algotradingId(), signal.getId(), exception.getMessage());
             } catch (RuntimeException exception) {
                 persistenceService.updateSignalStatus(signal, SignalStatus.FAILED, exception.getMessage());
                 stopWithError(errorMessageOf(exception));
@@ -241,6 +247,9 @@ public class AlgotradingWorker {
                 order.setStopPrice(roundedStop);
                 persistenceService.saveOrder(order);
             }
+        } catch (ResourceAccessException | HttpServerErrorException exception) {
+            LOGGER.warn("Transient broker I/O error on candle close, keeping worker ACTIVE: algotradingId={}, error={}",
+                    config.algotradingId(), exception.getMessage());
         } catch (RuntimeException exception) {
             stopWithError(exception.getMessage());
         } finally {

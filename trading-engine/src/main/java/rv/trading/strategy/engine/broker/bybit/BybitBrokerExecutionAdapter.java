@@ -2,7 +2,9 @@ package rv.trading.strategy.engine.broker.bybit;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import rv.trading.strategy.contracts.dto.internal.AlgotradingRuntimeConfig;
 import rv.trading.strategy.contracts.enums.BrokerCode;
@@ -23,8 +25,11 @@ import tools.jackson.databind.node.ObjectNode;
 
 import java.math.BigDecimal;
 import java.net.URI;
+import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.Instant;
+import java.util.function.Supplier;
 
 @Component
 public class BybitBrokerExecutionAdapter implements BrokerTradingAdapter {
@@ -76,6 +81,11 @@ public class BybitBrokerExecutionAdapter implements BrokerTradingAdapter {
     public static final String QUERY_EQUALS = "=";
     public static final String QUESTION_MARK = "?";
 
+    private static final int TRANSIENT_RETRY_ATTEMPTS = 3;
+    private static final long RETRY_BASE_DELAY_MILLIS = 300L;
+    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
+    private static final Duration READ_TIMEOUT = Duration.ofSeconds(10);
+
     private final TradingEngineProperties properties;
     private final JsonMapper jsonMapper;
     private final RuntimeConfigPort runtimeConfigPort;
@@ -88,8 +98,15 @@ public class BybitBrokerExecutionAdapter implements BrokerTradingAdapter {
         this.properties = properties;
         this.jsonMapper = jsonMapper;
         this.runtimeConfigPort = runtimeConfigPort;
-        this.liveRestClient = RestClient.builder().baseUrl(properties.getBybitLiveBaseUrl()).build();
-        this.demoRestClient = RestClient.builder().baseUrl(properties.getBybitDemoBaseUrl()).build();
+        JdkClientHttpRequestFactory requestFactory = createRequestFactory();
+        this.liveRestClient = RestClient.builder()
+                .baseUrl(properties.getBybitLiveBaseUrl())
+                .requestFactory(requestFactory)
+                .build();
+        this.demoRestClient = RestClient.builder()
+                .baseUrl(properties.getBybitDemoBaseUrl())
+                .requestFactory(requestFactory)
+                .build();
     }
 
     @Override
@@ -198,7 +215,8 @@ public class BybitBrokerExecutionAdapter implements BrokerTradingAdapter {
         body.put(SYMBOL_PARAM, command.symbol());
         body.put(ORDER_ID_PARAM, command.exchangeOrderId());
         body.put(TRIGGER_PRICE_KEY, command.newStopPrice().toPlainString());
-        requireSuccess(signedPost(credentials, BybitV5Endpoint.AMEND_ORDER, serialize(body)),
+
+        requireSuccess(executeWithRetry(() -> signedPost(credentials, BybitV5Endpoint.AMEND_ORDER, serialize(body))),
                 BybitV5Endpoint.AMEND_ORDER);
     }
 
@@ -215,7 +233,8 @@ public class BybitBrokerExecutionAdapter implements BrokerTradingAdapter {
         body.put(CATEGORY_PARAM, category(credentials));
         body.put(SYMBOL_PARAM, symbol);
         body.put(ORDER_ID_PARAM, exchangeOrderId);
-        requireSuccess(signedPost(credentials, BybitV5Endpoint.CANCEL_ORDER, serialize(body)),
+
+        requireSuccess(executeWithRetry(() -> signedPost(credentials, BybitV5Endpoint.CANCEL_ORDER, serialize(body))),
                 BybitV5Endpoint.CANCEL_ORDER);
     }
 
@@ -258,18 +277,22 @@ public class BybitBrokerExecutionAdapter implements BrokerTradingAdapter {
     private JsonNode signedGet(DecryptedBrokerCredentials credentials,
                                BybitV5Endpoint endpoint,
                                String queryString) {
-        long timestamp = Instant.now().toEpochMilli();
-        String signature = BybitV5Signer.sign(credentials.apiKey(), credentials.apiSecret(),
-                timestamp, properties.getBybitRecvWindowMillis(), queryString);
-        URI uri = URI.create(endpoint.path() + QUESTION_MARK + queryString);
-        return restClient(credentials).get()
-                .uri(uri)
-                .header(X_BAPI_API_KEY, credentials.apiKey())
-                .header(X_BAPI_TIMESTAMP, Long.toString(timestamp))
-                .header(X_BAPI_RECV_WINDOW, Long.toString(properties.getBybitRecvWindowMillis()))
-                .header(X_BAPI_SIGN, signature)
-                .retrieve()
-                .body(JsonNode.class);
+
+        return executeWithRetry(() -> {
+            long timestamp = Instant.now().toEpochMilli();
+            String signature = BybitV5Signer.sign(credentials.apiKey(), credentials.apiSecret(),
+                    timestamp, properties.getBybitRecvWindowMillis(), queryString);
+            URI uri = URI.create(endpoint.path() + QUESTION_MARK + queryString);
+
+            return restClient(credentials).get()
+                    .uri(uri)
+                    .header(X_BAPI_API_KEY, credentials.apiKey())
+                    .header(X_BAPI_TIMESTAMP, Long.toString(timestamp))
+                    .header(X_BAPI_RECV_WINDOW, Long.toString(properties.getBybitRecvWindowMillis()))
+                    .header(X_BAPI_SIGN, signature)
+                    .retrieve()
+                    .body(JsonNode.class);
+        });
     }
 
     private JsonNode signedPost(DecryptedBrokerCredentials credentials,
@@ -303,6 +326,40 @@ public class BybitBrokerExecutionAdapter implements BrokerTradingAdapter {
             return row;
         }
         return firstListRow(signedGet(credentials, BybitV5Endpoint.HISTORY_ORDER, queryString));
+    }
+
+    private static JdkClientHttpRequestFactory createRequestFactory() {
+        HttpClient httpClient = HttpClient.newBuilder()
+                .connectTimeout(CONNECT_TIMEOUT)
+                .build();
+        JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(httpClient);
+        factory.setReadTimeout(READ_TIMEOUT);
+        return factory;
+    }
+
+    private JsonNode executeWithRetry(Supplier<JsonNode> request) {
+        ResourceAccessException lastException = null;
+        for (int attempt = 1; attempt <= TRANSIENT_RETRY_ATTEMPTS; attempt++) {
+            try {
+                return request.get();
+            } catch (ResourceAccessException exception) {
+                lastException = exception;
+                if (attempt == TRANSIENT_RETRY_ATTEMPTS) {
+                    throw exception;
+                }
+                sleepBeforeRetry(attempt);
+            }
+        }
+        throw lastException;
+    }
+
+    private static void sleepBeforeRetry(int attempt) {
+        try {
+            Thread.sleep(RETRY_BASE_DELAY_MILLIS * attempt);
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while retrying Bybit request", interrupted);
+        }
     }
 
     private static JsonNode firstListRow(JsonNode response) {
